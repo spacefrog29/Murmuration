@@ -1,0 +1,30 @@
+/* Full-bleed canvas, no scrollbars, dark backdrop. */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0e14;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #c0c0c0;
+}
+
+#canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+#stats {
+  position: fixed;
+  top: 8px;
+  left: 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+  z-index: 10;
+}
+
+/* lil-gui sits top-right by default; nothing more to style. */
