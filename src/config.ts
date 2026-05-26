@@ -6,6 +6,9 @@
  * frame, so changes take effect immediately with no rebuild.
  */
 
+export type HuntingStrategy = 'solo' | 'spreading';
+// Future modes: 'encircling' | 'driving'
+
 export interface Config {
   // --- Population ---
   boidCount: number;
@@ -33,7 +36,7 @@ export interface Config {
   // --- Walls ---
   wallMargin: number;
 
-  // --- Predator ---
+  // --- Predator (individual) ---
   predatorMaxSpeed: number;
   predatorMaxForce: number;
   predatorFleeRadius: number;
@@ -41,14 +44,19 @@ export interface Config {
   predatorTargetLockTime: number;
   predatorKillRadius: number;
 
+  // --- Predator (pack behaviour) ---
+  huntingStrategy: HuntingStrategy;
+  predatorSeparationRadius: number;   // how close predators tolerate each other; coordination radius, NOT flock-relative
+  predatorSeparationWeight: number;   // strength of mutual repulsion in 'spreading' mode
+
   // --- Flee ---
   fleeWeight: number;
   removeOnKill: boolean;
 
   // --- Mouse pointer ---
-  pointerInfluenceRadius: number;  // how far the cursor's pull/push reaches
-  pointerWeight: number;            // strength of pointer force (attract or repel)
-  showPointerRadius: boolean;       // visualise the influence circle when active
+  pointerInfluenceRadius: number;
+  pointerWeight: number;
+  showPointerRadius: boolean;
 
   // --- Debug ---
   trailMode: boolean;
@@ -86,6 +94,10 @@ export const config: Config = {
   predatorTargetRadius: 400,
   predatorTargetLockTime: 2.0,
   predatorKillRadius: 8,
+
+  huntingStrategy: 'spreading',
+  predatorSeparationRadius: 350,
+  predatorSeparationWeight: 1.5,
 
   fleeWeight: 3.5,
   removeOnKill: false,

@@ -1,9 +1,6 @@
 /**
  * lil-gui control panel. Mutates `config` in place; the simulation reads from
  * the same object every frame, so changes are live.
- *
- * Returns the GUI instance — callers can use `gui.domElement` for
- * containment checks (so input events on the panel don't reach the world).
  */
 
 import GUI from 'lil-gui';
@@ -55,6 +52,11 @@ export function buildGui(config: Config, callbacks: GuiCallbacks): GUI {
   fPredator.add(config, 'predatorTargetLockTime', 0.1, 10.0, 0.1).name('Target lock (s)');
   fPredator.add(config, 'predatorKillRadius', 1, 50, 1);
   fPredator.add(config, 'removeOnKill').name('Remove prey on kill');
+
+  const fHunting = gui.addFolder('Hunting (pack)');
+  fHunting.add(config, 'huntingStrategy', ['solo', 'spreading']).name('Strategy');
+  fHunting.add(config, 'predatorSeparationRadius', 50, 800, 5).name('Spread radius');
+  fHunting.add(config, 'predatorSeparationWeight', 0, 5, 0.05).name('Spread weight');
 
   const fFlee = gui.addFolder('Flee');
   fFlee.add(config, 'predatorFleeRadius', 20, 500, 1);

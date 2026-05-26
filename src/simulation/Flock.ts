@@ -3,6 +3,9 @@
  *
  * Update pipeline (per frame):
  *   1. Predators update first (target selection + steering + integration).
+ *      Each predator sees the same snapshot of the others — pack-behaviour
+ *      forces (e.g. mutual repulsion in 'spreading' mode) read positions
+ *      from this frame's start, just like prey rules do.
  *   2. Prey: phase 1 — compute accelerations from current state. Includes
  *      separation/alignment/cohesion, flee (from predators), pointer force,
  *      and wall force. Double-buffered.
@@ -126,8 +129,17 @@ export class Flock {
 
   step(dt: number, config: Config): void {
     // --- Predators first ---
-    for (const predator of this.predators) {
-      updatePredator(predator, this.boids, this.worldWidth, this.worldHeight, dt, config);
+    for (let i = 0; i < this.predators.length; i++) {
+      updatePredator(
+        this.predators[i],
+        i,
+        this.predators,
+        this.boids,
+        this.worldWidth,
+        this.worldHeight,
+        dt,
+        config,
+      );
     }
 
     // --- Prey phase 1: accumulate forces ---
@@ -161,7 +173,6 @@ export class Flock {
         a.y += f.y * config.fleeWeight;
       }
 
-      // Mouse pointer force (attract or repel). Returns zero when pointer is 'off'.
       const pf = pointerForce(boid, this.pointer, config);
       a.x += pf.x * config.pointerWeight;
       a.y += pf.y * config.pointerWeight;
