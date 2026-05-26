@@ -9,6 +9,8 @@ import type { Config } from '../config.ts';
 export interface GuiCallbacks {
   onBoidCountChange: (count: number) => void;
   onReset: () => void;
+  onSpawnPredator: () => void;
+  onRemoveAllPredators: () => void;
 }
 
 export function buildGui(config: Config, callbacks: GuiCallbacks): GUI {
@@ -41,11 +43,26 @@ export function buildGui(config: Config, callbacks: GuiCallbacks): GUI {
   fWalls.add(config, 'wallWeight', 0, 5, 0.05);
   fWalls.add(config, 'wallMargin', 0, 400, 1);
 
+  const fPredator = gui.addFolder('Predator');
+  fPredator.add({ release: callbacks.onSpawnPredator }, 'release').name('Release predator');
+  fPredator.add({ clear: callbacks.onRemoveAllPredators }, 'clear').name('Remove all');
+  fPredator.add(config, 'predatorMaxSpeed', 50, 600, 1);
+  fPredator.add(config, 'predatorMaxForce', 10, 500, 1);
+  fPredator.add(config, 'predatorTargetRadius', 50, 1200, 5);
+  fPredator.add(config, 'predatorTargetLockTime', 0.1, 10.0, 0.1).name('Target lock (s)');
+  fPredator.add(config, 'predatorKillRadius', 1, 50, 1);
+  fPredator.add(config, 'removeOnKill').name('Remove prey on kill');
+
+  const fFlee = gui.addFolder('Flee');
+  fFlee.add(config, 'predatorFleeRadius', 20, 500, 1);
+  fFlee.add(config, 'fleeWeight', 0, 10, 0.05);
+
   const fDebug = gui.addFolder('Debug');
   fDebug.add(config, 'trailMode').name('Motion trails');
   fDebug.add(config, 'colourByHeading').name('Colour by heading');
   fDebug.add(config, 'showPerceptionRadius').name('Show perception (boid 0)');
   fDebug.add(config, 'showVelocityVectors').name('Show velocities');
+  fDebug.add(config, 'showPredatorTarget').name('Show predator target');
   fDebug.add(config, 'paused').name('Paused');
 
   return gui;

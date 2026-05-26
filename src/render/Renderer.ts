@@ -1,17 +1,18 @@
 /**
  * Canvas 2D renderer for the flock.
  *
- * One filled triangle per boid, rotated to face its velocity vector.
- * Uses ctx.save/translate/rotate/restore for clean code — fine for a few
- * thousand boids. If we need to scale beyond that, swap to manual rotation
- * maths (two trig calls + matrix-style transform per boid).
+ * Prey: small filled triangles. Predators: larger, stretched, red triangles.
+ * Both rotated to face their velocity vector.
  */
 
 import type { Flock } from '../simulation/Flock.ts';
 import type { Boid } from '../simulation/Boid.ts';
+import type { Predator } from '../simulation/Predator.ts';
 import type { Config } from '../config.ts';
 
-const BOID_SIZE = 6; // half-length of the triangle, in pixels
+const BOID_SIZE = 6;
+const PREDATOR_LENGTH = 16;      // forward extent of the stretched triangle
+const PREDATOR_HALF_WIDTH = 5;   // perpendicular extent
 
 export class Renderer {
   constructor(
@@ -25,7 +26,6 @@ export class Renderer {
     const width = this.getWidth();
     const height = this.getHeight();
 
-    // Background: hard clear OR translucent overlay for motion trails.
     if (config.trailMode) {
       ctx.fillStyle = 'rgba(10, 14, 20, 0.12)';
       ctx.fillRect(0, 0, width, height);
@@ -34,12 +34,18 @@ export class Renderer {
       ctx.fillRect(0, 0, width, height);
     }
 
-    // Boids
     for (const boid of flock.boids) {
       this.drawBoid(boid, config);
     }
 
-    // Debug overlays (drawn last so they sit on top)
+    for (const predator of flock.predators) {
+      this.drawPredator(predator);
+      if (config.showPredatorTarget && predator.targetIndex >= 0 && predator.targetIndex < flock.boids.length) {
+        this.drawTargetLine(predator, flock.boids[predator.targetIndex]);
+      }
+    }
+
+    // Debug overlays last (on top)
     if (config.showPerceptionRadius && flock.boids.length > 0) {
       this.drawPerception(flock.boids[0], config);
     }
@@ -57,14 +63,12 @@ export class Renderer {
     ctx.rotate(heading);
 
     if (config.colourByHeading) {
-      // Map heading from [-PI, PI] to [0, 360] hue
       const hue = ((heading + Math.PI) / (Math.PI * 2)) * 360;
       ctx.fillStyle = `hsl(${hue}, 70%, 60%)`;
     } else {
       ctx.fillStyle = '#d8dee9';
     }
 
-    // Triangle pointing along +x (which is now the heading after rotate)
     ctx.beginPath();
     ctx.moveTo(BOID_SIZE, 0);
     ctx.lineTo(-BOID_SIZE, BOID_SIZE * 0.6);
@@ -73,6 +77,42 @@ export class Renderer {
     ctx.fill();
 
     ctx.restore();
+  }
+
+  private drawPredator(predator: Predator): void {
+    const ctx = this.ctx;
+    const heading = Math.atan2(predator.velocity.y, predator.velocity.x);
+
+    ctx.save();
+    ctx.translate(predator.position.x, predator.position.y);
+    ctx.rotate(heading);
+
+    // Stretched dart shape, red. Pointed tip well forward, narrow tail.
+    ctx.fillStyle = '#e64545';
+    ctx.beginPath();
+    ctx.moveTo(PREDATOR_LENGTH, 0);
+    ctx.lineTo(-PREDATOR_LENGTH * 0.5, PREDATOR_HALF_WIDTH);
+    ctx.lineTo(-PREDATOR_LENGTH * 0.3, 0);
+    ctx.lineTo(-PREDATOR_LENGTH * 0.5, -PREDATOR_HALF_WIDTH);
+    ctx.closePath();
+    ctx.fill();
+
+    // Subtle outline for visibility against busy flock
+    ctx.strokeStyle = 'rgba(255, 200, 200, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  private drawTargetLine(predator: Predator, target: Boid): void {
+    const ctx = this.ctx;
+    ctx.strokeStyle = 'rgba(230, 69, 69, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(predator.position.x, predator.position.y);
+    ctx.lineTo(target.position.x, target.position.y);
+    ctx.stroke();
   }
 
   private drawPerception(boid: Boid, config: Config): void {
@@ -95,7 +135,6 @@ export class Renderer {
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(boid.position.x, boid.position.y);
-    // Scale velocity down for display
     ctx.lineTo(boid.position.x + boid.velocity.x * 0.1, boid.position.y + boid.velocity.y * 0.1);
     ctx.stroke();
   }

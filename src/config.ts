@@ -1,43 +1,56 @@
 /**
  * Central tunable configuration.
  *
- * Everything that affects how the flock looks or behaves lives here. lil-gui
- * mutates this object in place each time a slider moves; the simulation reads
- * from it every frame, so changes take effect immediately with no rebuild.
+ * Everything that affects how the simulation looks or behaves lives here.
+ * lil-gui mutates this object in place; the simulation reads from it every
+ * frame, so changes take effect immediately with no rebuild.
  */
 
 export interface Config {
-  // Population
+  // --- Population ---
   boidCount: number;
 
-  // Perception
+  // --- Prey perception ---
   perceptionRadius: number;   // alignment + cohesion range
   separationRadius: number;   // separation kicks in below this (< perceptionRadius)
 
-  // Motion limits
-  maxSpeed: number;           // pixels per second
-  minSpeed: number;           // pixels per second
+  // --- Prey motion ---
+  maxSpeed: number;           // px/sec
+  minSpeed: number;           // px/sec
   maxForce: number;           // cap on per-frame steering change; controls turn rate
 
-  // Rule weights
+  // --- Prey rule weights ---
   separationWeight: number;
   alignmentWeight: number;
   cohesionWeight: number;
   wallWeight: number;
 
-  // Rule enable/disable — debug toggles to see contribution of each rule
+  // --- Per-rule enable toggles ---
   enableSeparation: boolean;
   enableAlignment: boolean;
   enableCohesion: boolean;
 
-  // Wall behaviour
-  wallMargin: number;         // distance from edge at which wall force engages
+  // --- Walls ---
+  wallMargin: number;
 
-  // Debug toggles
+  // --- Predator ---
+  predatorMaxSpeed: number;       // typically 1.3× prey maxSpeed
+  predatorMaxForce: number;       // typically 0.5× prey maxForce (worse turning → swoops)
+  predatorFleeRadius: number;     // distance at which prey detect a predator
+  predatorTargetRadius: number;   // distance beyond which predator drops lock and re-picks
+  predatorTargetLockTime: number; // seconds before predator re-evaluates target
+  predatorKillRadius: number;     // distance at which a kill registers (when removeOnKill on)
+
+  // --- Flee ---
+  fleeWeight: number;             // prey response strength; high (~3.5) so it dominates cohesion when close
+  removeOnKill: boolean;          // if true, prey within killRadius of a predator are removed
+
+  // --- Debug ---
   trailMode: boolean;
   colourByHeading: boolean;
   showPerceptionRadius: boolean;
   showVelocityVectors: boolean;
+  showPredatorTarget: boolean;    // draw a line from predator to its current target
   paused: boolean;
 }
 
@@ -47,7 +60,6 @@ export const config: Config = {
   perceptionRadius: 60,
   separationRadius: 25,
 
-  // px/sec. ~3 px/frame at 60fps = 180 px/sec.
   maxSpeed: 180,
   minSpeed: 120,
   maxForce: 200,
@@ -63,9 +75,20 @@ export const config: Config = {
 
   wallMargin: 120,
 
+  predatorMaxSpeed: 230,          // ~1.28× prey maxSpeed
+  predatorMaxForce: 100,          // half of prey maxForce → wider turns, swoopy
+  predatorFleeRadius: 140,
+  predatorTargetRadius: 400,
+  predatorTargetLockTime: 2.0,
+  predatorKillRadius: 8,
+
+  fleeWeight: 3.5,
+  removeOnKill: false,
+
   trailMode: false,
   colourByHeading: false,
   showPerceptionRadius: false,
   showVelocityVectors: false,
+  showPredatorTarget: false,
   paused: false,
 };

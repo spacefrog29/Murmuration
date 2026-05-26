@@ -1,19 +1,22 @@
 /**
- * The Flock: owns all boids, runs the per-frame update.
+ * The Flock: owns all prey boids AND predators, runs the per-frame update.
  *
- * Update pipeline (per frame, per boid):
- *   1. Gather neighbour stats in one pass (O(n) per boid → O(n²) total)
- *   2. Compute sep / ali / coh / wall forces into accel[]
- *   3. After all boids processed, apply: velocity += accel * dt, clamp speed
- *   4. Integrate position: position += velocity * dt
- *
- * Steps 1–2 and 3–4 are split into two passes so every boid reads the *same*
- * snapshot of the world — that's the double buffer. Order-independent,
- * physically correct.
+ * Update pipeline (per frame):
+ *   1. Predators update first (target selection + steering + integration).
+ *      They read the current state of prey before prey react — this gives a
+ *      stable snapshot.
+ *   2. Prey gather neighbour stats and compute sep / ali / coh + flee + wall
+ *      forces into accel[]. Double-buffered: all reads from current state,
+ *      writes deferred.
+ *   3. Prey integrate (apply accel → velocity → position).
+ *   4. Kill check: if removeOnKill is on, prey inside killRadius of any
+ *      predator are removed (swap-and-pop to keep it O(1) per kill).
  */
 
 import type { Boid } from './Boid.ts';
 import { createBoid } from './Boid.ts';
+import type { Predator } from './Predator.ts';
+import { createPredator, updatePredator } from './Predator.ts';
 import type { Vec2 } from './Vector2.ts';
 import { v, length, limit, setMagnitude, sub } from './Vector2.ts';
 import type { Config } from '../config.ts';
@@ -24,10 +27,12 @@ import {
   separation,
 } from './rules.ts';
 import type { NeighbourStats } from './rules.ts';
+import { flee } from './flee.ts';
 
 export class Flock {
   boids: Boid[] = [];
-  /** Parallel array: accumulated acceleration for the current frame. */
+  predators: Predator[] = [];
+  /** Parallel array: accumulated acceleration for the current frame, prey only. */
   private accel: Vec2[] = [];
   /** Single reusable scratch object — refilled each boid, each frame. */
   private statsScratch: NeighbourStats = {
@@ -41,7 +46,8 @@ export class Flock {
     private worldHeight: number,
   ) {}
 
-  /** (Re)populate the flock with `count` boids at random positions/velocities. */
+  // --- Prey population management ----------------------------------------
+
   populate(count: number, initialSpeed: number): void {
     this.boids = [];
     this.accel = [];
@@ -57,7 +63,6 @@ export class Flock {
     }
   }
 
-  /** Adjust population without resetting existing boids. */
   resize(count: number, initialSpeed: number): void {
     while (this.boids.length < count) {
       const angle = Math.random() * Math.PI * 2;
@@ -75,6 +80,47 @@ export class Flock {
     }
   }
 
+  // --- Predator management -----------------------------------------------
+
+  /**
+   * Spawn a predator at a random edge of the world, pointed toward the flock
+   * centroid. Feels like the hawk arriving rather than appearing in the middle.
+   */
+  spawnPredator(speed: number): void {
+    // Pick a random edge: 0=top, 1=right, 2=bottom, 3=left
+    const edge = Math.floor(Math.random() * 4);
+    let x = 0;
+    let y = 0;
+    switch (edge) {
+      case 0: x = Math.random() * this.worldWidth; y = 0; break;
+      case 1: x = this.worldWidth; y = Math.random() * this.worldHeight; break;
+      case 2: x = Math.random() * this.worldWidth; y = this.worldHeight; break;
+      case 3: x = 0; y = Math.random() * this.worldHeight; break;
+    }
+
+    // Aim toward flock centroid, or screen centre if no flock.
+    let targetX = this.worldWidth / 2;
+    let targetY = this.worldHeight / 2;
+    if (this.boids.length > 0) {
+      let sumX = 0, sumY = 0;
+      for (const b of this.boids) { sumX += b.position.x; sumY += b.position.y; }
+      targetX = sumX / this.boids.length;
+      targetY = sumY / this.boids.length;
+    }
+    const dirX = targetX - x;
+    const dirY = targetY - y;
+    const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+    const vel = v((dirX / dirLen) * speed, (dirY / dirLen) * speed);
+
+    this.predators.push(createPredator(v(x, y), vel));
+  }
+
+  removeAllPredators(): void {
+    this.predators.length = 0;
+  }
+
+  // --- World ----------------------------------------------------------------
+
   setWorldSize(width: number, height: number): void {
     this.worldWidth = width;
     this.worldHeight = height;
@@ -82,21 +128,22 @@ export class Flock {
 
   /**
    * Step the simulation forward by `dt` seconds.
-   * Reads `config` live so slider changes take effect immediately.
    */
   step(dt: number, config: Config): void {
-    // --- Phase 1: compute accelerations from snapshot of current state ---
+    // --- Predators move first (snapshot of prey before prey react) ---
+    for (const predator of this.predators) {
+      updatePredator(predator, this.boids, this.worldWidth, this.worldHeight, dt, config);
+    }
+
+    // --- Prey: phase 1, compute accelerations from current state ---
     for (let i = 0; i < this.boids.length; i++) {
       const boid = this.boids[i];
       const a = this.accel[i];
       a.x = 0;
       a.y = 0;
 
-      // One pass over all other boids, gathering stats for all three rules.
       gatherNeighbourStats(boid, i, this.boids, config, this.statsScratch);
 
-      // Each rule returns a steering force already clamped to maxForce.
-      // We multiply by its weight and accumulate.
       if (config.enableSeparation) {
         const f = separation(boid, this.statsScratch, config);
         a.x += f.x * config.separationWeight;
@@ -113,22 +160,27 @@ export class Flock {
         a.y += f.y * config.cohesionWeight;
       }
 
-      // Wall avoidance (steer-away force near edges)
+      // Flee — added on top of the three rules so alignment/cohesion still
+      // operate. That's what produces the wave through the flock.
+      if (this.predators.length > 0) {
+        const f = flee(boid, this.predators, config);
+        a.x += f.x * config.fleeWeight;
+        a.y += f.y * config.fleeWeight;
+      }
+
       const wall = this.wallForce(boid, config);
       a.x += wall.x * config.wallWeight;
       a.y += wall.y * config.wallWeight;
     }
 
-    // --- Phase 2: integrate ---
+    // --- Prey: phase 2, integrate ---
     for (let i = 0; i < this.boids.length; i++) {
       const boid = this.boids[i];
       const a = this.accel[i];
 
-      // velocity += acceleration * dt
       boid.velocity.x += a.x * dt;
       boid.velocity.y += a.y * dt;
 
-      // Clamp speed to [minSpeed, maxSpeed]
       const speed = length(boid.velocity);
       if (speed > config.maxSpeed) {
         const s = config.maxSpeed / speed;
@@ -144,18 +196,52 @@ export class Flock {
         boid.velocity.y = Math.sin(angle) * config.minSpeed;
       }
 
-      // position += velocity * dt
       boid.position.x += boid.velocity.x * dt;
       boid.position.y += boid.velocity.y * dt;
+    }
+
+    // --- Kill check ---
+    if (config.removeOnKill && this.predators.length > 0) {
+      this.processKills(config);
     }
   }
 
   /**
-   * Wall avoidance using the Reynolds steering pattern.
-   *
-   * Within `wallMargin` of an edge, compute a desired velocity pointing inward
-   * at maxSpeed, then return (desired - current) clamped to maxForce.
+   * Remove any prey within killRadius of any predator. Uses swap-and-pop so
+   * removal is O(1) per kill. Also invalidates predator target indices that
+   * pointed past the surviving array — predator code re-picks next frame.
    */
+  private processKills(config: Config): void {
+    const killSq = config.predatorKillRadius * config.predatorKillRadius;
+    // Iterate backwards so swap-and-pop doesn't skip elements.
+    for (let i = this.boids.length - 1; i >= 0; i--) {
+      const boid = this.boids[i];
+      let killed = false;
+      for (let p = 0; p < this.predators.length; p++) {
+        const pred = this.predators[p];
+        const dx = pred.position.x - boid.position.x;
+        const dy = pred.position.y - boid.position.y;
+        if (dx * dx + dy * dy < killSq) {
+          killed = true;
+          // Reset this predator's target — it just ate.
+          pred.targetIndex = -1;
+          pred.targetAge = 0;
+          break;
+        }
+      }
+      if (killed) {
+        // Swap-and-pop; accel array stays parallel.
+        const last = this.boids.length - 1;
+        if (i !== last) {
+          this.boids[i] = this.boids[last];
+          this.accel[i] = this.accel[last];
+        }
+        this.boids.pop();
+        this.accel.pop();
+      }
+    }
+  }
+
   private wallForce(boid: Boid, config: Config): Vec2 {
     const margin = config.wallMargin;
     let desiredX = 0;
