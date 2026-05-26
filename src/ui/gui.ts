@@ -1,6 +1,9 @@
 /**
  * lil-gui control panel. Mutates `config` in place; the simulation reads from
  * the same object every frame, so changes are live.
+ *
+ * Returns the GUI instance — callers can use `gui.domElement` for
+ * containment checks (so input events on the panel don't reach the world).
  */
 
 import GUI from 'lil-gui';
@@ -56,6 +59,11 @@ export function buildGui(config: Config, callbacks: GuiCallbacks): GUI {
   const fFlee = gui.addFolder('Flee');
   fFlee.add(config, 'predatorFleeRadius', 20, 500, 1);
   fFlee.add(config, 'fleeWeight', 0, 10, 0.05);
+
+  const fPointer = gui.addFolder('Mouse pointer');
+  fPointer.add(config, 'pointerInfluenceRadius', 50, 600, 5);
+  fPointer.add(config, 'pointerWeight', 0, 10, 0.05);
+  fPointer.add(config, 'showPointerRadius').name('Show indicator');
 
   const fDebug = gui.addFolder('Debug');
   fDebug.add(config, 'trailMode').name('Motion trails');

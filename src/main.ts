@@ -1,12 +1,14 @@
 /**
- * Entry point. Wires up canvas, simulation, renderer, GUI, and the render loop.
+ * Entry point. Wires up canvas, simulation, renderer, GUI, input, and the render loop.
  */
 
 import './style.css';
 import { config } from './config.ts';
 import { Flock } from './simulation/Flock.ts';
+import { createPointer } from './simulation/Pointer.ts';
 import { Renderer } from './render/Renderer.ts';
 import { buildGui } from './ui/gui.ts';
+import { InputController } from './ui/InputController.ts';
 
 // --- Canvas setup with DPI scaling ------------------------------------------
 
@@ -31,7 +33,9 @@ function resizeCanvas(): void {
 
 // --- Build simulation -------------------------------------------------------
 
-let flock: Flock = new Flock(window.innerWidth, window.innerHeight);
+const pointer = createPointer();
+
+let flock: Flock = new Flock(window.innerWidth, window.innerHeight, pointer);
 const initialPreySpeed = (config.maxSpeed + config.minSpeed) / 2;
 flock.populate(config.boidCount, initialPreySpeed);
 
@@ -41,12 +45,16 @@ const renderer = new Renderer(
   () => window.innerHeight,
 );
 
-buildGui(config, {
+const gui = buildGui(config, {
   onBoidCountChange: (n) => flock.resize(n, (config.maxSpeed + config.minSpeed) / 2),
   onReset: () => flock.populate(config.boidCount, (config.maxSpeed + config.minSpeed) / 2),
   onSpawnPredator: () => flock.spawnPredator(config.predatorMaxSpeed * 0.8),
   onRemoveAllPredators: () => flock.removeAllPredators(),
 });
+
+// Hook up mouse → pointer. The InputController ignores events that originate
+// inside the GUI panel, keeping UI and world cleanly separated.
+new InputController(canvas, pointer, () => gui.domElement);
 
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
@@ -75,7 +83,9 @@ function frame(now: number): void {
     fpsAccum = 0;
     fpsFrames = 0;
   }
-  const predText = flock.predators.length > 0 ? `  ·  ${flock.predators.length} predator${flock.predators.length > 1 ? 's' : ''}` : '';
+  const predText = flock.predators.length > 0
+    ? `  ·  ${flock.predators.length} predator${flock.predators.length > 1 ? 's' : ''}`
+    : '';
   statsEl.textContent = `${fpsDisplay.toFixed(0)} fps  ·  ${flock.boids.length} boids${predText}`;
 
   requestAnimationFrame(frame);

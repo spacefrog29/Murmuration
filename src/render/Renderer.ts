@@ -1,18 +1,16 @@
 /**
  * Canvas 2D renderer for the flock.
- *
- * Prey: small filled triangles. Predators: larger, stretched, red triangles.
- * Both rotated to face their velocity vector.
  */
 
 import type { Flock } from '../simulation/Flock.ts';
 import type { Boid } from '../simulation/Boid.ts';
 import type { Predator } from '../simulation/Predator.ts';
+import type { Pointer } from '../simulation/Pointer.ts';
 import type { Config } from '../config.ts';
 
 const BOID_SIZE = 6;
-const PREDATOR_LENGTH = 16;      // forward extent of the stretched triangle
-const PREDATOR_HALF_WIDTH = 5;   // perpendicular extent
+const PREDATOR_LENGTH = 16;
+const PREDATOR_HALF_WIDTH = 5;
 
 export class Renderer {
   constructor(
@@ -45,12 +43,16 @@ export class Renderer {
       }
     }
 
-    // Debug overlays last (on top)
     if (config.showPerceptionRadius && flock.boids.length > 0) {
       this.drawPerception(flock.boids[0], config);
     }
     if (config.showVelocityVectors) {
       for (const boid of flock.boids) this.drawVelocity(boid);
+    }
+
+    // Pointer indicator: draws only when pointer is active.
+    if (config.showPointerRadius) {
+      this.drawPointer(flock.getPointer(), config);
     }
   }
 
@@ -87,7 +89,6 @@ export class Renderer {
     ctx.translate(predator.position.x, predator.position.y);
     ctx.rotate(heading);
 
-    // Stretched dart shape, red. Pointed tip well forward, narrow tail.
     ctx.fillStyle = '#e64545';
     ctx.beginPath();
     ctx.moveTo(PREDATOR_LENGTH, 0);
@@ -97,7 +98,6 @@ export class Renderer {
     ctx.closePath();
     ctx.fill();
 
-    // Subtle outline for visibility against busy flock
     ctx.strokeStyle = 'rgba(255, 200, 200, 0.6)';
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -137,5 +137,30 @@ export class Renderer {
     ctx.moveTo(boid.position.x, boid.position.y);
     ctx.lineTo(boid.position.x + boid.velocity.x * 0.1, boid.position.y + boid.velocity.y * 0.1);
     ctx.stroke();
+  }
+
+  /**
+   * Pointer indicator: a translucent circle at the cursor showing the
+   * influence radius. Green for attract, orange for repel.
+   */
+  private drawPointer(pointer: Pointer, config: Config): void {
+    if (pointer.mode === 'off') return;
+
+    const ctx = this.ctx;
+    const colour = pointer.mode === 'attract'
+      ? 'rgba(120, 220, 140, 0.5)'
+      : 'rgba(240, 160, 80, 0.5)';
+
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(pointer.position.x, pointer.position.y, config.pointerInfluenceRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Small filled dot at the centre so the cursor location is unambiguous.
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.arc(pointer.position.x, pointer.position.y, 4, 0, Math.PI * 2);
+    ctx.fill();
   }
 }

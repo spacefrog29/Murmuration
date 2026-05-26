@@ -11,13 +11,13 @@ export interface Config {
   boidCount: number;
 
   // --- Prey perception ---
-  perceptionRadius: number;   // alignment + cohesion range
-  separationRadius: number;   // separation kicks in below this (< perceptionRadius)
+  perceptionRadius: number;
+  separationRadius: number;
 
   // --- Prey motion ---
-  maxSpeed: number;           // px/sec
-  minSpeed: number;           // px/sec
-  maxForce: number;           // cap on per-frame steering change; controls turn rate
+  maxSpeed: number;
+  minSpeed: number;
+  maxForce: number;
 
   // --- Prey rule weights ---
   separationWeight: number;
@@ -34,23 +34,28 @@ export interface Config {
   wallMargin: number;
 
   // --- Predator ---
-  predatorMaxSpeed: number;       // typically 1.3× prey maxSpeed
-  predatorMaxForce: number;       // typically 0.5× prey maxForce (worse turning → swoops)
-  predatorFleeRadius: number;     // distance at which prey detect a predator
-  predatorTargetRadius: number;   // distance beyond which predator drops lock and re-picks
-  predatorTargetLockTime: number; // seconds before predator re-evaluates target
-  predatorKillRadius: number;     // distance at which a kill registers (when removeOnKill on)
+  predatorMaxSpeed: number;
+  predatorMaxForce: number;
+  predatorFleeRadius: number;
+  predatorTargetRadius: number;
+  predatorTargetLockTime: number;
+  predatorKillRadius: number;
 
   // --- Flee ---
-  fleeWeight: number;             // prey response strength; high (~3.5) so it dominates cohesion when close
-  removeOnKill: boolean;          // if true, prey within killRadius of a predator are removed
+  fleeWeight: number;
+  removeOnKill: boolean;
+
+  // --- Mouse pointer ---
+  pointerInfluenceRadius: number;  // how far the cursor's pull/push reaches
+  pointerWeight: number;            // strength of pointer force (attract or repel)
+  showPointerRadius: boolean;       // visualise the influence circle when active
 
   // --- Debug ---
   trailMode: boolean;
   colourByHeading: boolean;
   showPerceptionRadius: boolean;
   showVelocityVectors: boolean;
-  showPredatorTarget: boolean;    // draw a line from predator to its current target
+  showPredatorTarget: boolean;
   paused: boolean;
 }
 
@@ -75,8 +80,8 @@ export const config: Config = {
 
   wallMargin: 120,
 
-  predatorMaxSpeed: 230,          // ~1.28× prey maxSpeed
-  predatorMaxForce: 100,          // half of prey maxForce → wider turns, swoopy
+  predatorMaxSpeed: 230,
+  predatorMaxForce: 100,
   predatorFleeRadius: 140,
   predatorTargetRadius: 400,
   predatorTargetLockTime: 2.0,
@@ -84,6 +89,10 @@ export const config: Config = {
 
   fleeWeight: 3.5,
   removeOnKill: false,
+
+  pointerInfluenceRadius: 200,
+  pointerWeight: 3.0,
+  showPointerRadius: true,
 
   trailMode: false,
   colourByHeading: false,
