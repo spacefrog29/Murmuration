@@ -46,17 +46,6 @@ export interface NeighbourStats {
   separationCount: number;
 }
 
-const makeStats: () => NeighbourStats = () => ({
-  velSumX: 0,
-  velSumY: 0,
-  perceptionCount: 0,
-  posSumX: 0,
-  posSumY: 0,
-  sepX: 0,
-  sepY: 0,
-  separationCount: 0,
-});
-
 /**
  * Gather everything the three rules need for one boid by scanning the 3×3
  * block of grid cells around it. Returns the same scratch object passed in

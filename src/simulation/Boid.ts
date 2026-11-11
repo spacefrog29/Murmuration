@@ -13,18 +13,7 @@ export interface Boid {
   velocity: Vec2;
 }
 
-/** Factory: create a new boid with random initial state */
 export const createBoid = (position: Vec2, velocity: Vec2): Boid => ({
   position,
   velocity,
 });
-
-/** Revive: reset position/velocity for recycling an old boid */
-export const reviveBoid = (boid: Boid): void => {
-  const angle = Math.random() * Math.PI * 2;
-  const speed = Math.random() * 50 + 10; // 10-60px/s random starting speed
-  boid.position.x = Math.random() * 3000;
-  boid.position.y = Math.random() * 3000;
-  boid.velocity.x = Math.cos(angle) * speed;
-  boid.velocity.y = Math.sin(angle) * speed;
-};

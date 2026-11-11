@@ -12,8 +12,13 @@ Browser boid-flocking simulation (starling murmuration). Vite + TypeScript + Can
 - `npm run build` — `tsc` type-check, then `vite build` into `dist/`
 - `npm run preview` — serve the built `dist/`
 - `npx tsc` — type-check only (`noEmit` is set)
+- `npm test` — run all Vitest tests once; `npm run test:watch` for watch mode
+- `npx vitest run src/simulation/Flock.test.ts` — run one test file
+- `npx vitest run -t "resize shrinks"` — run tests whose name matches
+- `npm run lint` — ESLint (flat config in `eslint.config.js`, typescript-eslint recommended)
+- `npm run check` — `tsc && eslint . && vitest run`; run this before committing
 
-There is no test runner and no linter configured. `tsc` is the only static check.
+Tests live next to the code as `src/**/*.test.ts` and run in a Node environment (no DOM), so only `simulation/` is tested. `rules.test.ts` holds a brute-force O(n²) reference scan and asserts the grid matches it exactly — keep that test when changing `SpatialGrid` or `gatherNeighbourStats`.
 
 ## Architecture
 

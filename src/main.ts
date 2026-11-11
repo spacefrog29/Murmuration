@@ -35,7 +35,7 @@ function resizeCanvas(): void {
 
 const pointer = createPointer();
 
-let flock: Flock = new Flock(window.innerWidth, window.innerHeight, pointer);
+const flock: Flock = new Flock(window.innerWidth, window.innerHeight, pointer);
 const initialPreySpeed = (config.maxSpeed + config.minSpeed) / 2;
 flock.populate(config.boidCount, initialPreySpeed);
 
