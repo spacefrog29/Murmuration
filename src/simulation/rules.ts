@@ -11,16 +11,17 @@
  * a little toward that way each frame." Skip it and boids snap-rotate
  * like turret-mounted guns.
  *
- * All three rules currently do a naive O(n) inner scan; the caller does
- * an outer O(n) over boids, giving O(n²) total. That's deliberate — it's
- * the reference implementation. The seam for plugging in a spatial grid
- * later is `findNeighbours` below.
+ * The neighbour scan (`gatherNeighbourStats`) walks a SpatialGrid rather than
+ * the whole flock: only the 3×3 block of cells around the boid is visited.
+ * The grid's cell size is the perception radius, so nothing in range can be
+ * outside that block. The rules themselves never see the grid.
  */
 
 import type { Boid } from './Boid.ts';
 import type { Vec2 } from './Vector2.ts';
 import { v, length, limit, setMagnitude, sub } from './Vector2.ts';
 import type { Config } from '../config.ts';
+import type { SpatialGrid } from './SpatialGrid.ts';
 
 /**
  * Scratch object holding pre-scanned neighbour data, so all three rules can
@@ -45,7 +46,7 @@ export interface NeighbourStats {
   separationCount: number;
 }
 
-const makeStats = (): NeighbourStats => ({
+const makeStats: () => NeighbourStats = () => ({
   velSumX: 0,
   velSumY: 0,
   perceptionCount: 0,
@@ -57,14 +58,17 @@ const makeStats = (): NeighbourStats => ({
 });
 
 /**
- * Single pass over the flock to gather everything the three rules need
- * for one boid. Returns the same scratch object passed in (reused across
- * frames to avoid allocation).
+ * Gather everything the three rules need for one boid by scanning the 3×3
+ * block of grid cells around it. Returns the same scratch object passed in
+ * (reused across frames to avoid allocation).
+ *
+ * The grid must have been rebuilt this frame with cellSize >= perceptionRadius.
  */
 export function gatherNeighbourStats(
   self: Boid,
   selfIndex: number,
   boids: Boid[],
+  grid: SpatialGrid,
   config: Config,
   out: NeighbourStats,
 ): NeighbourStats {
@@ -81,32 +85,49 @@ export function gatherNeighbourStats(
   const percSq = config.perceptionRadius * config.perceptionRadius;
   const sepSq = config.separationRadius * config.separationRadius;
 
-  for (let i = 0; i < boids.length; i++) {
-    if (i === selfIndex) continue;
-    const other = boids[i];
-    const dx = other.position.x - self.position.x;
-    const dy = other.position.y - self.position.y;
-    const dSq = dx * dx + dy * dy;
+  const selfX = self.position.x;
+  const selfY = self.position.y;
+  const col = grid.colAt(selfX);
+  const row = grid.rowAt(selfY);
+  const colMin = col > 0 ? col - 1 : 0;
+  const colMax = col < grid.cols - 1 ? col + 1 : grid.cols - 1;
+  const rowMin = row > 0 ? row - 1 : 0;
+  const rowMax = row < grid.rows - 1 ? row + 1 : grid.rows - 1;
 
-    if (dSq >= percSq) continue; // outside perception, skip entirely
+  const cellStart = grid.cellStart;
+  const entries = grid.entries;
 
-    // Alignment + cohesion accumulators
-    out.velSumX += other.velocity.x;
-    out.velSumY += other.velocity.y;
-    out.posSumX += other.position.x;
-    out.posSumY += other.position.y;
-    out.perceptionCount++;
+  for (let r = rowMin; r <= rowMax; r++) {
+    for (let c = colMin; c <= colMax; c++) {
+      const cell = r * grid.cols + c;
+      const end = cellStart[cell + 1];
+      for (let k = cellStart[cell]; k < end; k++) {
+        const i = entries[k];
+        if (i === selfIndex) continue;
+        const other = boids[i];
+        const dx = other.position.x - selfX;
+        const dy = other.position.y - selfY;
+        const dSq = dx * dx + dy * dy;
 
-    // Separation: only if inside the (smaller) separation radius
-    if (dSq < sepSq && dSq > 0) {
-      // Vector pointing AWAY from neighbour, weighted by 1/distance.
-      // 1/distance is achieved by dividing the unit vector by distance again,
-      // i.e. (dx, dy) / dSq * length — but simpler: away_unit / distance.
-      // We just take (-dx, -dy) / dSq, which gives away-direction scaled by 1/d.
-      const dist = Math.sqrt(dSq);
-      out.sepX += (-dx / dist) / dist;
-      out.sepY += (-dy / dist) / dist;
-      out.separationCount++;
+        if (dSq >= percSq) continue; // outside perception, skip entirely
+
+        // Alignment + cohesion accumulators
+        out.velSumX += other.velocity.x;
+        out.velSumY += other.velocity.y;
+        out.posSumX += other.position.x;
+        out.posSumY += other.position.y;
+        out.perceptionCount++;
+
+        // Separation: only if inside the (smaller) separation radius.
+        // (-dx, -dy) / dist is the unit "away" vector; dividing by dist again
+        // weights it by 1/distance so closer neighbours push harder.
+        if (dSq < sepSq && dSq > 0) {
+          const dist = Math.sqrt(dSq);
+          out.sepX += (-dx / dist) / dist;
+          out.sepY += (-dy / dist) / dist;
+          out.separationCount++;
+        }
+      }
     }
   }
 

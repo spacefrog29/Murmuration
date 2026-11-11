@@ -30,11 +30,14 @@ import type { NeighbourStats } from './rules.ts';
 import { flee } from './flee.ts';
 import type { Pointer } from './Pointer.ts';
 import { pointerForce } from './Pointer.ts';
+import { SpatialGrid } from './SpatialGrid.ts';
 
 export class Flock {
   boids: Boid[] = [];
   predators: Predator[] = [];
   private accel: Vec2[] = [];
+  /** Rebuilt every frame from current positions; read-only during phase 1. */
+  private grid = new SpatialGrid();
   private statsScratch: NeighbourStats = {
     velSumX: 0, velSumY: 0, perceptionCount: 0,
     posSumX: 0, posSumY: 0,
@@ -65,8 +68,15 @@ export class Flock {
     }
   }
 
+  /**
+   * Grow or shrink to `count` without resetting existing boids.
+   * Growing appends new boids; shrinking truncates both arrays together
+   * so `boids[i]` and `accel[i]` always stay paired.
+   */
   resize(count: number, initialSpeed: number): void {
-    while (this.boids.length < count) {
+    const targetCount = Math.max(0, Math.floor(count));
+
+    while (this.boids.length < targetCount) {
       const angle = Math.random() * Math.PI * 2;
       this.boids.push(
         createBoid(
@@ -76,9 +86,10 @@ export class Flock {
       );
       this.accel.push(v(0, 0));
     }
-    if (this.boids.length > count) {
-      this.boids.length = count;
-      this.accel.length = count;
+
+    if (this.boids.length > targetCount) {
+      this.boids.length = targetCount;
+      this.accel.length = targetCount;
     }
   }
 
@@ -142,6 +153,17 @@ export class Flock {
       );
     }
 
+    // --- Bucket prey into the grid from this frame's positions ---
+    // Cell size = perception radius, so any boid within range of another is
+    // in the same cell or an adjacent one. Positions are frozen during phase 1,
+    // so the grid stays valid for every boid's scan.
+    this.grid.rebuild(
+      this.boids,
+      config.perceptionRadius,
+      this.worldWidth,
+      this.worldHeight,
+    );
+
     // --- Prey phase 1: accumulate forces ---
     for (let i = 0; i < this.boids.length; i++) {
       const boid = this.boids[i];
@@ -149,7 +171,7 @@ export class Flock {
       a.x = 0;
       a.y = 0;
 
-      gatherNeighbourStats(boid, i, this.boids, config, this.statsScratch);
+      gatherNeighbourStats(boid, i, this.boids, this.grid, config, this.statsScratch);
 
       if (config.enableSeparation) {
         const f = separation(boid, this.statsScratch, config);

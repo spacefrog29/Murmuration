@@ -18,7 +18,7 @@ export function buildGui(config: Config, callbacks: GuiCallbacks): GUI {
 
   const fPop = gui.addFolder('Population');
   fPop
-    .add(config, 'boidCount', 10, 1500, 10)
+    .add(config, 'boidCount', 10) // Remove max/min limits to allow custom values
     .onChange((n: number) => callbacks.onBoidCountChange(n));
   fPop.add({ reset: callbacks.onReset }, 'reset').name('Reset positions');
 

@@ -70,7 +70,7 @@ The `desired - current` subtraction is what makes motion smooth. Setting velocit
 
 **dt-based timestep.** Motion is multiplied by elapsed seconds since the last frame, so the simulation runs the same on 60Hz, 144Hz, or 165Hz monitors. `dt` is clamped to `1/30s` to prevent the sim from exploding when the tab regains focus after being backgrounded.
 
-**Naive O(n²) neighbour search.** Every boid checks every other boid. Comfortable up to ~500 boids; beyond that, frame rate sags. The neighbour-gathering code is isolated in `rules.ts::gatherNeighbourStats` so a uniform spatial grid can be dropped in later without touching the rules themselves.
+**Uniform spatial grid neighbour search.** Each frame, boids are bucketed into square cells of side `perceptionRadius` (`simulation/SpatialGrid.ts`). A boid's neighbours can only be in its own cell or the 8 around it, so `rules.ts::gatherNeighbourStats` scans ~9 cells instead of the whole flock — roughly O(n) instead of O(n²). The grid is a counting sort into flat `Int32Array`s, so it allocates nothing once warmed up. Several thousand boids run comfortably.
 
 **Single shared scratch object.** The neighbour stats for one boid live in a single reusable object on the `Flock` instance, refilled each iteration. This keeps GC pressure down — at 200 boids × 60fps that's 12,000 avoided allocations per second.
 
@@ -104,9 +104,9 @@ All exposed live in the GUI panel:
 
 ## Roadmap
 
-- [ ] Predator boids — flock flees, predator pursues
-- [ ] Mouse interaction — cursor as attractor / repulsor
-- [ ] Uniform spatial grid — O(n²) → O(n), unlocks several thousand boids
+- [x] Predator boids — flock flees, predator pursues
+- [x] Mouse interaction — cursor as attractor / repulsor
+- [x] Uniform spatial grid — O(n²) → O(n), unlocks several thousand boids
 - [ ] Wind / global force field
 - [ ] Obstacle avoidance
 - [ ] 3D (WebGL port)

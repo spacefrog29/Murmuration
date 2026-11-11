@@ -18,7 +18,7 @@
 
 import type { Boid } from './Boid.ts';
 import type { Vec2 } from './Vector2.ts';
-import { v, length, limit, setMagnitude, sub } from './Vector2.ts';
+import { v, limit, setMagnitude, sub } from './Vector2.ts';
 import type { Config } from '../config.ts';
 
 export type PointerMode = 'off' | 'attract' | 'repel';
